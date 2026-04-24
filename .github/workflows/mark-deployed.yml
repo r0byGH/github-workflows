@@ -1,5 +1,5 @@
 # .github/workflows/mark-deployed.yml
-name: Mark ref as deployed (reusable)
+name: Mark ref as deployed
 
 on:
   workflow_call:
@@ -13,12 +13,15 @@ on:
       app_name:
         required: false
         type: string
+        default: ""
       deployed_url:
         required: false
         type: string
+        default: ""
       notes:
         required: false
         type: string
+        default: ""
 
 permissions:
   contents: read
@@ -26,16 +29,58 @@ permissions:
 
 jobs:
   mark-deployed:
+    name: ${{ inputs.ref }} → ${{ inputs.environment }}
     runs-on: ubuntu-latest
+
     environment:
       name: ${{ inputs.environment }}
       url: ${{ inputs.deployed_url }}
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout selected ref
+        uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
+          fetch-depth: 0
 
-      - run: |
-          echo "Deploying ${{ inputs.ref }} to ${{ inputs.environment }}"
-          git rev-parse HEAD
+      - name: Resolve deployed version
+        id: version
+        shell: bash
+        run: |
+          COMMIT_SHA="$(git rev-parse HEAD)"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          COMMIT_SUBJECT="$(git log -1 --pretty=%s)"
+          COMMIT_DATE="$(git log -1 --pretty=%ci)"
+
+          echo "commit_sha=$COMMIT_SHA" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$SHORT_SHA" >> "$GITHUB_OUTPUT"
+          echo "commit_subject=$COMMIT_SUBJECT" >> "$GITHUB_OUTPUT"
+          echo "commit_date=$COMMIT_DATE" >> "$GITHUB_OUTPUT"
+
+      - name: Write production version summary
+        shell: bash
+        run: |
+          {
+            echo "# Deployment recorded"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Environment | \`${{ inputs.environment }}\` |"
+            echo "| Requested ref | \`${{ inputs.ref }}\` |"
+            echo "| Resolved commit | \`${{ steps.version.outputs.commit_sha }}\` |"
+            echo "| Short commit | \`${{ steps.version.outputs.short_sha }}\` |"
+            echo "| Commit date | \`${{ steps.version.outputs.commit_date }}\` |"
+            echo "| Commit message | ${{ steps.version.outputs.commit_subject }} |"
+
+            if [ -n "${{ inputs.app_name }}" ]; then
+              echo "| Application | \`${{ inputs.app_name }}\` |"
+            fi
+
+            if [ -n "${{ inputs.deployed_url }}" ]; then
+              echo "| URL | ${{ inputs.deployed_url }} |"
+            fi
+
+            if [ -n "${{ inputs.notes }}" ]; then
+              echo "| Notes | ${{ inputs.notes }} |"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

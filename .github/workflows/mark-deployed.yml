@@ -1,0 +1,41 @@
+# .github/workflows/mark-deployed.yml
+name: Mark ref as deployed (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      environment:
+        required: true
+        type: string
+      app_name:
+        required: false
+        type: string
+      deployed_url:
+        required: false
+        type: string
+      notes:
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  mark-deployed:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ inputs.deployed_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - run: |
+          echo "Deploying ${{ inputs.ref }} to ${{ inputs.environment }}"
+          git rev-parse HEAD
